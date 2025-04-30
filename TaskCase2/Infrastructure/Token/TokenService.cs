@@ -7,24 +7,15 @@ namespace TaskCase2.Infrastructure.Token;
 
 public sealed class TokenService : ITokenService
 {
+    private const string CacheKey = "access_token";
+
+    // access_token süresi(sn) – 2 dakika güvenlik payı
+    private static readonly TimeSpan TokenTtl = TimeSpan.FromMinutes(58);
+
     private readonly IMemoryCache _cache;
     private readonly IHttpClientFactory _http;
     private readonly AsyncRateLimitPolicy _rate;
     private readonly ILogger<TokenService> _log;
-
-    // *** TEST / PROD ayarları *******************************
-#if DEBUG          //  dotnet run  →  Debug
-    private static readonly TimeSpan Window = TimeSpan.FromSeconds(30);
-    private const int WindowQuota = 5;                        // 5 istek
-    private const int TokenTtlSec = 5;                        // cache 5s
-#else               //  dotnet run -c Release
-    private static readonly TimeSpan Window        = TimeSpan.FromHours(1);
-    private const           int      WindowQuota   = 5;
-    private const           int      TokenTtlSec   = 3540; // ≃ 59 dk
-#endif
-    // *******************************************************
-
-    private const string CacheKey = "access_token";
 
     public TokenService(IMemoryCache cache,
                         IHttpClientFactory http,
@@ -33,7 +24,9 @@ public sealed class TokenService : ITokenService
         _cache = cache;
         _http = http;
         _log = log;
-        _rate = Policy.RateLimitAsync(WindowQuota, Window);
+
+        // 30 saniyede en fazla 5 istek
+        _rate = Policy.RateLimitAsync(5, TimeSpan.FromSeconds(30), maxBurst: 5); //test için 1 saat yerine 30 saniye ve burst verilerek tek seferde 5 isteği kabul edecek hale geldi
     }
 
     private sealed record TokenDto(string token_type,
@@ -44,38 +37,31 @@ public sealed class TokenService : ITokenService
         bool forceRefresh = false,
         CancellationToken ct = default)
     {
-        // 1) Cache kontrolü
-        if (!forceRefresh && _cache.TryGetValue(CacheKey, out string cached))
-        {
-            _log.LogTrace("[Cache HIT] {Tok}", cached[..8]);
-            return cached;
-        }
+        if (!forceRefresh && _cache.TryGetValue(CacheKey, out string token))
+            return token;
 
-        // 2) Polly rate-limit
         try
         {
             return await _rate.ExecuteAsync(async innerCt =>
             {
-                _log.LogInformation("Polly /token isteği gönderiliyor…");
-
-                var res = await _http.CreateClient("auth")
+                var rsp = await _http.CreateClient("auth")
                                      .PostAsync("/token", null, innerCt);
-                res.EnsureSuccessStatusCode();
+                rsp.EnsureSuccessStatusCode();
 
-                var dto = await res.Content.ReadFromJsonAsync<TokenDto>(
-                              cancellationToken: innerCt)
+                var dto = await rsp.Content.ReadFromJsonAsync<TokenDto>(cancellationToken: innerCt)
                           ?? throw new Exception("Token çözümlenemedi");
 
-                var ttl = TimeSpan.FromSeconds(TokenTtlSec);
-                _cache.Set(CacheKey, dto.access_token, ttl);
+                // token ömründen 2 dakika eksilterek saklarım
+                _cache.Set(CacheKey, dto.access_token, TokenTtl);
 
                 return dto.access_token;
             }, ct);
         }
         catch (RateLimitRejectedException)
         {
-            _log.LogWarning("‼️ Token limiti aşıldı (>{Quota} istek/{Win})", WindowQuota, Window);
+            _log.LogWarning("‼️ Son 1 saat içinde 5’ten fazla token isteği atıldı (RateLimitRejected)");
             throw;
         }
     }
 }
+

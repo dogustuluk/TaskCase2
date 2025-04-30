@@ -1,7 +1,6 @@
 ﻿using Polly.RateLimit;
 using TaskCase2.Features.Orders;
 using TaskCase2.Infrastructure.Token;
-using TokenSample.Features.Orders;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,11 +18,9 @@ builder.Services.AddHttpClient("auth", c => c.BaseAddress = baseUri);
 builder.Services.AddHttpClient("orders", c => c.BaseAddress = baseUri);
 
 
-
-
 builder.Services.AddSingleton<ITokenService, TokenService>();
-builder.Services.AddTransient<GetOrders.Handler>();
-builder.Services.AddHostedService<OrderPollingService>();
+builder.Services.AddScoped<GetOrders.Handler>();
+//builder.Services.AddHostedService<OrderPollingService>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -44,7 +41,7 @@ app.MapControllers();
 
 app.MapPost("/token", () =>
 {
-    // 1 saat geçerli, rastgele bir token
+    // 1 saat geçerli rastgele bir token
     return Results.Ok(new
     {
         token_type = "Bearer",
@@ -70,26 +67,26 @@ app.MapGet("/orders",
         return Results.Ok(list);
     });
 
-app.MapGet("/test-token", async (ITokenService svc) =>
-{
-    var outp = new List<string>();
-    //for (int i = 1; i <= 17; i++)
-    //{
-    try
+app.MapGet("/test-token",
+    async (ITokenService svc) =>
     {
-        var t = await svc.GetAccessTokenAsync(forceRefresh: true);
-        // outp.Add($"Çağrı {i}: {t[..8]}");
-        outp.Add($"Çağrı Yapıldı");
-    }
-    catch (RateLimitRejectedException)
-    {
-        outp.Add($"‼️ RateLimitRejected");
-        //.Add($"Çağrı {i}: ‼️ RateLimitRejected");
-    }
-    // }
-    return outp;
-});
+        var sonuç = new List<string>();
 
+        for (int i = 1; i <= 17; i++)
+        {
+            try
+            {
+                await svc.GetAccessTokenAsync(forceRefresh: true);
+                sonuç.Add($"İstek Geçerli {i}");
+            }
+            catch (RateLimitRejectedException)
+            {
+                sonuç.Add($"RateLimitRejected {i}");
+            }
+
+        }
+        return sonuç;
+    });
 
 
 
