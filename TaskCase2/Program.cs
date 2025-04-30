@@ -77,11 +77,11 @@ app.MapGet("/test-token",
             try
             {
                 await svc.GetAccessTokenAsync(forceRefresh: true);
-                sonuç.Add($"İstek Geçerli {i}");
+                sonuç.Add($"İstek Geçerli: {i}. istek");
             }
             catch (RateLimitRejectedException)
             {
-                sonuç.Add($"RateLimitRejected {i}");
+                sonuç.Add($"RateLimitRejected: {i}. istek");
             }
 
         }

@@ -27,8 +27,7 @@ public static class GetOrders
             CancellationToken ct = default)
         {
             var client = _factory.CreateClient("orders");
-            client.DefaultRequestHeaders.Authorization =
-                new("Bearer", await _tokenSvc.GetAccessTokenAsync(ct: ct));
+            client.DefaultRequestHeaders.Authorization = new("Bearer", await _tokenSvc.GetAccessTokenAsync(ct: ct));
 
             var rsp = await client.GetAsync("/remote/orders", ct);
             rsp.EnsureSuccessStatusCode();
@@ -36,7 +35,7 @@ public static class GetOrders
             var data = await rsp.Content.ReadFromJsonAsync<OrderDto[]>(cancellationToken: ct)
                        ?? Array.Empty<OrderDto>();
 
-            _log.LogInformation("{Count} sipariş çekildi.", data.Length);
+            _log.LogInformation("{Count} sipariş.", data.Length);
             return data;
         }
     }

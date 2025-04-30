@@ -44,8 +44,7 @@ public sealed class TokenService : ITokenService
         {
             return await _rate.ExecuteAsync(async innerCt =>
             {
-                var rsp = await _http.CreateClient("auth")
-                                     .PostAsync("/token", null, innerCt);
+                var rsp = await _http.CreateClient("auth").PostAsync("/token", null, innerCt);
                 rsp.EnsureSuccessStatusCode();
 
                 var dto = await rsp.Content.ReadFromJsonAsync<TokenDto>(cancellationToken: innerCt)
@@ -59,7 +58,7 @@ public sealed class TokenService : ITokenService
         }
         catch (RateLimitRejectedException)
         {
-            _log.LogWarning("‼️ Son 1 saat içinde 5’ten fazla token isteği atıldı (RateLimitRejected)");
+            _log.LogWarning("Son 1 saat içinde 5’ten fazla token isteği atıldı (RateLimitRejected)");
             throw;
         }
     }
